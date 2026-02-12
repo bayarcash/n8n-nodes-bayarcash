@@ -359,7 +359,7 @@ export class Bayarcash implements INodeType {
 				noDataExpression: false,
 			},
 			{
-				displayName: 'Portal',
+				displayName: 'Portal Name or ID',
 				name: 'portalKey',
 				type: 'options',
 				typeOptions: {
@@ -376,7 +376,7 @@ export class Bayarcash implements INodeType {
 					},
 				},
 				default: '',
-				description: 'Select a portal from your Bayarcash account',
+				description: 'Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code-examples/expressions/">expression</a>',
 				required: true,
 			},
 			{
