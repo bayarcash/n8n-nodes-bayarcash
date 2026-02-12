@@ -1,6 +1,8 @@
 import {
 	IExecuteFunctions,
+	ILoadOptionsFunctions,
 	INodeExecutionData,
+	INodePropertyOptions,
 	INodeType,
 	INodeTypeDescription,
 	IHttpRequestOptions,
@@ -288,7 +290,7 @@ export class Bayarcash implements INodeType {
 					{
 						displayName: 'Payment Channel',
 						name: 'payment_channel',
-						type: 'options',
+						type: 'multiOptions',
 						options: [
 							{ name: 'FPX', value: '1' },
 							{ name: 'FPX Line of Credit', value: '4' },
@@ -299,8 +301,8 @@ export class Bayarcash implements INodeType {
 							{ name: 'QRIS Indonesia eWallet', value: '10' },
 							{ name: 'NETS Singapore', value: '11' },
 						],
-						default: '1',
-						description: 'Filter transactions by payment channel',
+						default: [],
+						description: 'Filter transactions by payment channel(s). Leave empty to show all.',
 					},
 					{
 						displayName: 'Exchange Reference Number',
@@ -331,7 +333,7 @@ export class Bayarcash implements INodeType {
 			{
 				displayName: 'Payment Channel',
 				name: 'paymentChannel',
-				type: 'options',
+				type: 'multiOptions',
 				displayOptions: {
 					show: {
 						operation: [
@@ -343,7 +345,7 @@ export class Bayarcash implements INodeType {
 					},
 				},
 				options: [
-					{ name: 'FPX (Default Payment Channel)', value: 1 },
+					{ name: 'FPX', value: 1 },
 					{ name: 'FPX Line of Credit', value: 4 },
 					{ name: 'DuitNow Online Banking/Wallets', value: 5 },
 					{ name: 'DuitNow QR', value: 6 },
@@ -352,15 +354,17 @@ export class Bayarcash implements INodeType {
 					{ name: 'QRIS Indonesia eWallet', value: 10 },
 					{ name: 'NETS Singapore', value: 11 },
 				],
-				default: 1,
-				description: 'Payment channel ID. By default only FPX channel (1) is activated for new accounts.',
-				required: true,
+				default: [],
+				description: 'Payment channel(s). Select one or more. Leave empty to list all available channels. By default only FPX channel (1) is activated for new accounts.',
 				noDataExpression: false,
 			},
 			{
-				displayName: 'Portal Key',
+				displayName: 'Portal',
 				name: 'portalKey',
-				type: 'string',
+				type: 'options',
+				typeOptions: {
+					loadOptionsMethod: 'getPortals',
+				},
 				displayOptions: {
 					show: {
 						operation: [
@@ -372,7 +376,7 @@ export class Bayarcash implements INodeType {
 					},
 				},
 				default: '',
-				description: 'Portal key retrieved from Bayarcash console',
+				description: 'Select a portal from your Bayarcash account',
 				required: true,
 			},
 			{
@@ -398,7 +402,9 @@ export class Bayarcash implements INodeType {
 				name: 'amount',
 				type: 'number',
 				typeOptions: {
-					numberPrecision: 0,
+					minValue: 1,
+					maxValue: 30000,
+					numberPrecision: 2,
 				},
 				displayOptions: {
 					show: {
@@ -410,8 +416,8 @@ export class Bayarcash implements INodeType {
 						],
 					},
 				},
-				default: 0,
-				description: 'Amount for the payment (in integer)',
+				default: 1,
+				description: 'Amount for the payment (between 1.00 and 30,000.00)',
 				required: true,
 			},
 			{
@@ -502,56 +508,6 @@ export class Bayarcash implements INodeType {
 				description: 'Server to browser redirect URL (GET method)',
 			},
 			{
-				displayName: 'Payer Bank Code',
-				name: 'payerBankCode',
-				type: 'string',
-				displayOptions: {
-					show: {
-						operation: [
-							'create',
-						],
-						resource: [
-							'paymentIntent',
-						],
-					},
-				},
-				default: '',
-				description: 'Bank code of the payer',
-			},
-			{
-				displayName: 'Payer Bank Name',
-				name: 'payerBankName',
-				type: 'string',
-				displayOptions: {
-					show: {
-						operation: [
-							'create',
-						],
-						resource: [
-							'paymentIntent',
-						],
-					},
-				},
-				default: '',
-				description: 'Bank name of the payer',
-			},
-			{
-				displayName: 'Metadata',
-				name: 'metadata',
-				type: 'string',
-				displayOptions: {
-					show: {
-						operation: [
-							'create',
-						],
-						resource: [
-							'paymentIntent',
-						],
-					},
-				},
-				default: '',
-			},
-			{
 				displayName: 'Platform ID',
 				name: 'platformId',
 				type: 'string',
@@ -567,24 +523,34 @@ export class Bayarcash implements INodeType {
 				},
 				default: '',
 			},
-			{
-				displayName: 'Checksum',
-				name: 'checksum',
-				type: 'string',
-				displayOptions: {
-					show: {
-						operation: [
-							'create',
-						],
-						resource: [
-							'paymentIntent',
-						],
-					},
-				},
-				default: '',
-				description: 'Checksum for verification',
-			},
 		],
+	};
+
+	methods = {
+		loadOptions: {
+			async getPortals(this: ILoadOptionsFunctions): Promise<INodePropertyOptions[]> {
+				const credentials = await this.getCredentials('bayarcashApi');
+				const apiBaseUrl = (credentials.environment || credentials.apiUrl || 'https://api.console.bayar.cash/v3') as string;
+
+				const options: IHttpRequestOptions = {
+					headers: {
+						'Accept': 'application/json',
+						'Authorization': `Bearer ${credentials.patToken}`,
+					},
+					method: 'GET',
+					url: `${apiBaseUrl}/portals?per_page=200`,
+					json: true,
+				};
+
+				const responseData = await this.helpers.httpRequest(options);
+				const portals = responseData.data || [];
+
+				return portals.map((portal: { portal_key: string; portal_name: string }) => ({
+					name: portal.portal_name,
+					value: portal.portal_key,
+				}));
+			},
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -594,12 +560,13 @@ export class Bayarcash implements INodeType {
 		const operation = this.getNodeParameter('operation', 0) as string;
 
 		const credentials = await this.getCredentials('bayarcashApi');
+		const apiBaseUrl = (credentials.environment || credentials.apiUrl || 'https://api.console.bayar.cash/v3') as string;
 
 		for (let i = 0; i < items.length; i++) {
 			try {
 				if (resource === 'paymentIntent') {
 					if (operation === 'create') {
-						const paymentChannel = this.getNodeParameter('paymentChannel', i) as number;
+						const paymentChannel = this.getNodeParameter('paymentChannel', i) as number[];
 						const portalKey = this.getNodeParameter('portalKey', i) as string;
 						const orderNumber = this.getNodeParameter('orderNumber', i) as string;
 						const amount = this.getNodeParameter('amount', i) as number;
@@ -609,14 +576,9 @@ export class Bayarcash implements INodeType {
 						const payerTelephoneNumber = this.getNodeParameter('payerTelephoneNumber', i, '') as string;
 						const callbackUrl = this.getNodeParameter('callbackUrl', i, '') as string;
 						const returnUrl = this.getNodeParameter('returnUrl', i, '') as string;
-						const payerBankCode = this.getNodeParameter('payerBankCode', i, '') as string;
-						const payerBankName = this.getNodeParameter('payerBankName', i, '') as string;
-						const metadata = this.getNodeParameter('metadata', i, '') as string;
 						const platformId = this.getNodeParameter('platformId', i, '') as string;
-						const checksum = this.getNodeParameter('checksum', i, '') as string;
 
 						const body: Record<string, any> = {
-							payment_channel: paymentChannel,
 							portal_key: portalKey,
 							order_number: orderNumber,
 							amount: amount,
@@ -624,16 +586,18 @@ export class Bayarcash implements INodeType {
 							payer_email: payerEmail,
 						};
 
+						if (paymentChannel.length === 1) {
+							body.payment_channel = paymentChannel[0];
+						} else if (paymentChannel.length > 1) {
+							body.payment_channel = paymentChannel;
+						}
+
 						if (payerTelephoneNumber) {
 							body.payer_telephone_number = parseInt(payerTelephoneNumber.replace(/\D/g, ''), 10);
 						}
 						if (callbackUrl) body.callback_url = callbackUrl;
 						if (returnUrl) body.return_url = returnUrl;
-						if (payerBankCode) body.payer_bank_code = payerBankCode;
-						if (payerBankName) body.payer_bank_name = payerBankName;
-						if (metadata) body.metadata = metadata;
 						if (platformId) body.platform_id = platformId;
-						if (checksum) body.checksum = checksum;
 
 						const options: IHttpRequestOptions = {
 							headers: {
@@ -643,7 +607,7 @@ export class Bayarcash implements INodeType {
 							},
 							method: 'POST',
 							body,
-							url: `${credentials.apiUrl}/payment-intents`,
+							url: `${apiBaseUrl}/payment-intents`,
 							json: true,
 						};
 
@@ -664,7 +628,7 @@ export class Bayarcash implements INodeType {
 								'Authorization': `Bearer ${credentials.patToken}`,
 							},
 							method: 'GET',
-							url: `${credentials.apiUrl}/payment-intents/${paymentIntentId}`,
+							url: `${apiBaseUrl}/payment-intents/${paymentIntentId}`,
 							json: true,
 						};
 
@@ -685,7 +649,7 @@ export class Bayarcash implements INodeType {
 								'Authorization': `Bearer ${credentials.patToken}`,
 							},
 							method: 'DELETE',
-							url: `${credentials.apiUrl}/payment-intents/${paymentIntentId}`,
+							url: `${apiBaseUrl}/payment-intents/${paymentIntentId}`,
 							json: true,
 						};
 
@@ -706,7 +670,7 @@ export class Bayarcash implements INodeType {
 								'Authorization': `Bearer ${credentials.patToken}`,
 							},
 							method: 'GET',
-							url: `${credentials.apiUrl}/portals`,
+							url: `${apiBaseUrl}/portals`,
 							json: true,
 						};
 
@@ -727,7 +691,7 @@ export class Bayarcash implements INodeType {
 								'Authorization': `Bearer ${credentials.patToken}`,
 							},
 							method: 'GET',
-							url: `${credentials.apiUrl}/portals/${portalId}`,
+							url: `${apiBaseUrl}/portals/${portalId}`,
 							json: true,
 						};
 
@@ -750,7 +714,7 @@ export class Bayarcash implements INodeType {
 								'Authorization': `Bearer ${credentials.patToken}`,
 							},
 							method: 'GET',
-							url: `${credentials.apiUrl}/transactions/${transactionId}`,
+							url: `${apiBaseUrl}/transactions/${transactionId}`,
 							json: true,
 						};
 
@@ -767,13 +731,21 @@ export class Bayarcash implements INodeType {
 
 						// Build query parameters
 						const queryParams = Object.entries(filters)
-							.filter(([_, value]) => value !== '')
-							.map(([key, value]) => `${key}=${encodeURIComponent(value as string)}`)
+							.filter(([_, value]) => {
+								if (Array.isArray(value)) return value.length > 0;
+								return value !== '';
+							})
+							.map(([key, value]) => {
+								if (Array.isArray(value)) {
+									return value.map((v) => `${key}[]=${encodeURIComponent(v as string)}`).join('&');
+								}
+								return `${key}=${encodeURIComponent(value as string)}`;
+							})
 							.join('&');
 
 						const url = queryParams
-							? `${credentials.apiUrl}/transactions?${queryParams}`
-							: `${credentials.apiUrl}/transactions`;
+							? `${apiBaseUrl}/transactions?${queryParams}`
+							: `${apiBaseUrl}/transactions`;
 
 						const options: IHttpRequestOptions = {
 							headers: {
