@@ -48,8 +48,9 @@ jobs:
         run: |
           npm pkg set name="@bayarcash/n8n-nodes-bayarcash"
           npm config set @bayarcash:registry "https://npm.pkg.github.com"
+          npm config set //npm.pkg.github.com/:_authToken "${GITHUB_TOKEN}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish to GitHub Packages
         run: npm publish --registry=https://npm.pkg.github.com --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
