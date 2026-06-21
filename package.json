@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-bayarcash",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Bayarcash Node for N8N",
   "keywords": [
     "n8n-community-node-package"
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/khairulimran-97/n8n-bayarcash.git"
+    "url": "git+https://github.com/bayarcash/n8n-nodes-bayarcash.git"
   },
   "engines": {
     "node": ">=18.10",
@@ -60,6 +60,6 @@
     "n8n-workflow": "^1.48.0"
   },
   "bugs": {
-    "url": "https://github.com/khairulimran-97/n8n-bayarcash/issues"
+    "url": "https://github.com/bayarcash/n8n-nodes-bayarcash/issues"
   }
 }
